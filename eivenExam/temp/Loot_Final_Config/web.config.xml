@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<!--
+  有关如何配置 ASP.NET 应用程序的详细信息，请访问
+  http://go.microsoft.com/fwlink/?LinkId=169433
+  -->
+<configuration>
+  <!--
+    有关 web.config 更改的说明，请参见 http://go.microsoft.com/fwlink/?LinkId=235367。
+
+    可在 <httpRuntime> 标记上设置以下特性。
+      <system.Web>
+        <httpRuntime targetFramework="4.6" />
+      </system.Web>
+  -->
+  <appSettings>
+    <add key="BaseExamPath" value="F:\Exam2020\"/>
+  </appSettings>
+  <connectionStrings>
+    <clear/>
+    <add name="EXE" connectionString="Data Source=.\MSSQL;Initial Catalog=EXE;User ID=sa;Password=obafgkm37" providerName="System.Data.SqlClient"/>
+  </connectionStrings>
+  <system.webServer>
+    <httpProtocol>
+      <customHeaders>
+        <add name="Cache-Control" value="no-cache"/>
+      </customHeaders>
+    </httpProtocol>
+    <defaultDocument>
+      <files>
+        <remove value="Default.htm"/>
+        <remove value="Default.asp"/>
+        <remove value="index.htm"/>
+        <remove value="index.html"/>
+        <remove value="iisstart.htm"/>
+        <remove value="default.aspx"/>
+        <add value="Default.aspx"/>
+      </files>
+    </defaultDocument>
+  </system.webServer>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="DeviceServiceSoap" maxBufferSize="2147483647" maxReceivedMessageSize="2147483647"/>
+      </basicHttpBinding>
+      <customBinding>
+        <binding name="DeviceServiceSoap12">
+          <textMessageEncoding messageVersion="Soap12"/>
+          <httpTransport/>
+        </binding>
+      </customBinding>
+    </bindings>
+    <client>
+      <endpoint address="http://exelab.org/Models/Exam2020.asmx" contract="*" binding="basicHttpBinding" bindingConfiguration="DeviceServiceSoap"/>
+    </client>
+  </system.serviceModel>
+  <system.web>
+    <customErrors mode="Off"/>
+    <compilation debug="true" targetFramework="4.6"/>
+    <httpRuntime maxRequestLength="2147483647" executionTimeout="36000"/>
+    <pages controlRenderingCompatibilityVersion="4.0"/>
+  </system.web>
+  <system.web.extensions>
+    <scripting>
+      <webServices>
+        <jsonSerialization maxJsonLength="2147483647"/>
+      </webServices>
+    </scripting>
+  </system.web.extensions>
+  <system.codedom/>
+</configuration>
