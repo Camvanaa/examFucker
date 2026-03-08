@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         中国大学慕课AI答题助手
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.4
 // @description  自动获取题目并使用AI回答，支持多种页面格式
-// @author       camvan
+// @author       camvan, midairlogn 
 // @match        *://www.icourse163.org/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
@@ -16,7 +16,10 @@
   const CONFIG = {
     showDebug: true, // 是否显示调试信息（请求/响应内容）
     autoClick: true, // 是否自动点击选项
-    delay: 100, // 每题之间的延迟(ms)
+    autoFillText: true, // 是否自动填入填空/问答题答案
+    delay: 1200, // 每题之间的延迟(ms)，用于降低并发限流概率
+    optionClickInterval: 1000, // 同一题多个选项点击间隔(ms)，避免保存草稿并发
+    textFillInterval: 1000, // 同一题多个填空框填入间隔(ms)，避免保存草稿并发
   };
 
   // API配置
@@ -276,6 +279,7 @@
         url: API_CONFIG.baseUrl,
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           Authorization: "Bearer " + API_CONFIG.apiKey,
         },
         data: requestBody,
@@ -287,10 +291,36 @@
             request: requestBody,
             response: response.responseText,
             status: response.status,
+            finalUrl: response.finalUrl || "",
           };
 
+          if (response.status < 200 || response.status >= 300) {
+            reject({
+              error: "HTTP错误: " + response.status,
+              debug: debugInfo,
+            });
+            return;
+          }
+
+          var responseText = (response.responseText || "").trim();
+          if (!responseText) {
+            reject({
+              error: "响应为空",
+              debug: debugInfo,
+            });
+            return;
+          }
+
+          if (responseText[0] === "<") {
+            reject({
+              error: "接口返回了HTML而不是JSON，请检查API地址/路径是否正确",
+              debug: debugInfo,
+            });
+            return;
+          }
+
           try {
-            var data = JSON.parse(response.responseText);
+            var data = JSON.parse(responseText);
 
             if (data.choices && data.choices[0] && data.choices[0].message) {
               resolve({
@@ -397,21 +427,70 @@
       .replace(/"/g, "&quot;");
   }
 
+  function autoFillTextAnswer(element, answer, questionType) {
+    if (!CONFIG.autoFillText) return Promise.resolve();
+
+    var typeText = (questionType || "").trim();
+    var isTextQuestion =
+      typeText.indexOf("填空") !== -1 || typeText.indexOf("问答") !== -1;
+
+    if (!isTextQuestion) return Promise.resolve();
+
+    var textareas = element.querySelectorAll("textarea.j-textarea, textarea");
+    if (!textareas || textareas.length === 0) return Promise.resolve();
+
+    var answerText = (answer || "").trim();
+    if (!answerText) return Promise.resolve();
+
+    var parts = answerText
+      .split(/\r?\n+/)
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(function (s) {
+        return s.length > 0;
+      });
+
+    function fillOne(textarea, value) {
+      textarea.focus();
+      textarea.value = value;
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      textarea.dispatchEvent(new Event("change", { bubbles: true }));
+      textarea.blur();
+    }
+
+    var i = 0;
+    function fillNext() {
+      if (i >= textareas.length) return Promise.resolve();
+
+      var value = parts[i] || answerText;
+      fillOne(textareas[i], value);
+      i++;
+
+      if (i >= textareas.length) return Promise.resolve();
+      return new Promise(function (r) {
+        setTimeout(r, CONFIG.textFillInterval);
+      }).then(fillNext);
+    }
+
+    return fillNext();
+  }
+
   function autoClickOption(element, answer, questionType, format) {
-    if (!CONFIG.autoClick) return;
+    if (!CONFIG.autoClick) return Promise.resolve();
 
     var answerText = answer.trim().toUpperCase();
     var optionLetters = answerText.match(/[A-D]/g);
 
     if (!optionLetters || optionLetters.length === 0) {
       console.log("未能从答案中提取选项字母:", answer);
-      return;
+      return Promise.resolve();
     }
 
     optionLetters = [...new Set(optionLetters)];
     console.log("提取到选项字母:", optionLetters, "格式:", format);
 
-    optionLetters.forEach(function (letter) {
+    var clickSingleOption = function (letter) {
       var clicked = false;
 
       if (format === 2) {
@@ -474,7 +553,20 @@
       if (!clicked) {
         console.log("未能找到选项:", letter);
       }
-    });
+    };
+
+    var i = 0;
+    function clickNext() {
+      if (i >= optionLetters.length) return Promise.resolve();
+      clickSingleOption(optionLetters[i]);
+      i++;
+      if (i >= optionLetters.length) return Promise.resolve();
+      return new Promise(function (r) {
+        setTimeout(r, CONFIG.optionClickInterval);
+      }).then(clickNext);
+    }
+
+    return clickNext();
   }
 
   function processQuestion(question) {
@@ -491,12 +583,18 @@
     return callAI(prompt)
       .then(function (result) {
         showAnswer(question.element, result.answer, false, result.debug);
-        autoClickOption(
+        return autoFillTextAnswer(
           question.element,
           result.answer,
           question.questionType,
-          question.format,
-        );
+        ).then(function () {
+          return autoClickOption(
+            question.element,
+            result.answer,
+            question.questionType,
+            question.format,
+          );
+        });
       })
       .catch(function (result) {
         var errorMsg = result.error || result;

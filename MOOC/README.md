@@ -9,6 +9,7 @@
 - 调用OpenAI兼容API获取答案
 - 答案展示在题目旁边
 - 支持自动点击选项
+- 支持自动填入填空题答案
 - 支持多种页面格式
 - 可配置调试模式查看请求/响应
 
@@ -24,16 +25,19 @@
 ```javascript
 // ========== 配置项 ==========
 const CONFIG = {
-  showDebug: true,    // 是否显示调试信息（请求/响应内容）
-  autoClick: true,    // 是否自动点击选项
-  delay: 100,         // 每题之间的延迟(ms)
+  showDebug: true, // 是否显示调试信息（请求/响应内容）
+  autoClick: true, // 是否自动点击选项
+  autoFillText: true, // 是否自动填入填空/问答题答案
+  delay: 1200, // 每题之间的延迟(ms)，用于降低并发限流概率
+  optionClickInterval: 1000, // 同一题多个选项点击间隔(ms)，避免保存草稿并发
+  textFillInterval: 1000, // 同一题多个填空框填入间隔(ms)，避免保存草稿并发
 };
 
 // API配置
 const API_CONFIG = {
-  baseUrl: "https://api.example.com/v1/chat/completions",  // API地址
-  apiKey: "sk-your-api-key",                                // API密钥
-  model: "gpt-3.5-turbo",                                   // 模型名称
+  baseUrl: "https://api.example.com/v1/chat/completions", // API地址
+  apiKey: "sk-your-api-key", // API密钥
+  model: "gpt-3.5-turbo", // 模型名称
 };
 ```
 
