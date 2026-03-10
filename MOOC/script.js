@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         中国大学慕课AI答题助手
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  自动获取题目并使用AI回答，支持多种页面格式
 // @author       camvan, midairlogn 
 // @match        *://www.icourse163.org/*
@@ -26,7 +26,8 @@
   const API_CONFIG = {
     baseUrl: "https://api.example.com/v1/chat/completions", // API地址
     apiKey: "sk-your-api-key", // API密钥
-    model: "gpt-3.5-turbo", // 模型名称
+    models: ["gemini-3-flash", "gemini-2.5-flash", "claude-opus-4-6", "deepseek-v3.2"], // 模型列表
+    selectedModel: "gemini-3-flash", // 当前选择的模型
   };
 
   GM_addStyle(`
@@ -61,10 +62,6 @@
             80%, 100% { content: '...'; }
         }
         .ai-helper-btn {
-            position: fixed;
-            right: 20px;
-            bottom: 20px;
-            z-index: 9999;
             padding: 12px 24px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
@@ -74,13 +71,47 @@
             font-size: 14px;
             font-weight: bold;
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
         }
         .ai-helper-btn:hover {
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
         }
         .ai-helper-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+        .ai-model-selector {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+        .ai-model-select {
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .ai-model-select:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        .ai-model-select option {
+            color: #000;
+            background: #fff;
         }
         .ai-debug {
             margin-top: 10px;
@@ -260,7 +291,7 @@
       console.log("发送API请求...");
 
       var requestBody = JSON.stringify({
-        model: API_CONFIG.model,
+        model: API_CONFIG.selectedModel,
         messages: [
           {
             role: "system",
@@ -635,6 +666,24 @@
   }
 
   function createFloatingButton() {
+    var container = document.createElement("div");
+    container.className = "ai-model-selector";
+
+    var select = document.createElement("select");
+    select.className = "ai-model-select";
+    API_CONFIG.models.forEach(function(model) {
+        var option = document.createElement("option");
+        option.value = model;
+        option.textContent = model;
+        if (model === API_CONFIG.selectedModel) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+    select.onchange = function() {
+        API_CONFIG.selectedModel = select.value;
+    };
+
     var btn = document.createElement("button");
     btn.className = "ai-helper-btn";
     btn.textContent = "AI答题";
@@ -652,7 +701,10 @@
           btn.textContent = "AI答题";
         });
     };
-    document.body.appendChild(btn);
+
+    container.appendChild(select);
+    container.appendChild(btn);
+    document.body.appendChild(container);
   }
 
   if (document.readyState === "complete") {
