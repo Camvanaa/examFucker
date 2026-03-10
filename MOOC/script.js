@@ -494,11 +494,12 @@
         
         callAI(checkPrompt, 1).then(result => {
           explanationDiv.innerHTML = "<strong>解析：</strong><br>" + escapeHtml(result.answer);
-          checkBtn.textContent = "检查完成";
+          checkBtn.textContent = "检查完成，点击重新检查";
+          checkBtn.disabled = false;
         }).catch(err => {
           explanationDiv.textContent = "检查失败: " + (err.error || "未知错误");
-          checkBtn.disabled = false;
           checkBtn.textContent = "重试检查";
+          checkBtn.disabled = false;
         });
       };
     }
