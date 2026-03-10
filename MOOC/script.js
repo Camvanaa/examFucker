@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         中国大学慕课AI答题助手
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.6
 // @description  自动获取题目并使用AI回答，支持多种页面格式
 // @author       camvan, midairlogn 
 // @match        *://www.icourse163.org/*
@@ -14,7 +14,7 @@
 
   // ========== 配置项 ==========
   const CONFIG = {
-    showDebug: true, // 是否显示调试信息（请求/响应内容）
+    showDebug: false, // 是否显示调试信息（请求/响应内容）
     autoClick: true, // 是否自动点击选项
     autoFillText: true, // 是否自动填入填空/问答题答案
     delay: 1200, // 每题之间的延迟(ms)，用于降低并发限流概率
@@ -50,6 +50,29 @@
             border-radius: 6px;
             line-height: 1.6;
             white-space: pre-wrap;
+        }
+        .ai-check-btn {
+            margin-top: 10px;
+            padding: 5px 12px;
+            background: #fff;
+            color: #764ba2;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .ai-check-btn:hover { background: #eee; }
+        .ai-check-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .ai-explanation {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.5;
+            display: none;
         }
         .ai-answer-loading::after {
             content: '...';
@@ -286,8 +309,16 @@
     return [];
   }
 
-  function callAI(prompt) {
+  function callAI(prompt, prompt_type = 0) {
+    let system_instructions = "";
     return new Promise(function (resolve, reject) {
+      if(prompt_type === 0){
+        system_instructions = `你是答题助手。对于所有选择题（包括判断题）直接回答选项字母如"A"或"B"；填空题和问答题简洁作答。判断题中A代表正确/对，B代表错误/错。`;
+      }
+      else{
+        system_instructions = `你是答题助手，你现在需要检查题目答案是否正确并给出简短的解释或解题思路。请注意你需要先给出检查后的最新的正确答案（这里，对于所有选择题（包括判断题）直接回答选项字母如"A"或"B"；填空题和问答题简洁作答。判断题中A代表正确/对，B代表错误/错。），之后再给出简短的解释或解题思路。`
+      }
+
       console.log("发送API请求...");
 
       var requestBody = JSON.stringify({
@@ -295,8 +326,7 @@
         messages: [
           {
             role: "system",
-            content:
-              '你是答题助手。对于所有选择题（包括判断题）直接回答选项字母如"A"或"B"；填空题和问答题简洁作答。判断题中A代表正确/对，B代表错误/错。',
+            content: system_instructions,
           },
           {
             role: "user",
@@ -409,7 +439,7 @@
     return prompt;
   }
 
-  function showAnswer(element, answer, isLoading, debugInfo) {
+  function showAnswer(element, answer, isLoading, debugInfo, question) {
     var existing = element.querySelector(".ai-answer-container");
     if (existing) existing.remove();
 
@@ -437,12 +467,40 @@
           "</pre>" +
           "</div>";
       }
+      
       container.innerHTML =
-        '<div class="ai-answer-title">AI答案</div>' +
+        // 使用 Flex 布局的标题栏，将文字和按钮水平排列
+        '<div class="ai-answer-title" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
+            '<span>AI答案</span>' + 
+            '<button class="ai-check-btn" style="padding: 4px 10px; border-radius: 4px; border: none; cursor: pointer; background: #fff; color: #764ba2; font-size: 12px; font-weight: bold; margin-left: 10px;">检查并解释</button>' +
+        '</div>' +
         '<div class="ai-answer-content">' +
-        escapeHtml(answer) +
-        "</div>" +
+            escapeHtml(answer) +
+        '</div>' +
+        '<div class="ai-explanation" style="margin-top: 8px; display: none; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 13px;"></div>' +
         debugHtml;
+
+      // 绑定检查按钮事件
+      const checkBtn = container.querySelector(".ai-check-btn");
+      const explanationDiv = container.querySelector(".ai-explanation");
+      
+      checkBtn.onclick = function() {
+        checkBtn.disabled = true;
+        checkBtn.textContent = "分析中...";
+        explanationDiv.style.display = "block";
+        explanationDiv.textContent = "AI 正在分析题目逻辑...";
+        
+        const checkPrompt = `题目: ${question.questionTitle}\n选项: ${question.options.join(", ")}\n给出的初始答案: ${answer}\n请检查该答案是否正确，并给出简短的解释或解题思路。`;
+        
+        callAI(checkPrompt, 1).then(result => {
+          explanationDiv.innerHTML = "<strong>解析：</strong><br>" + escapeHtml(result.answer);
+          checkBtn.textContent = "检查完成";
+        }).catch(err => {
+          explanationDiv.textContent = "检查失败: " + (err.error || "未知错误");
+          checkBtn.disabled = false;
+          checkBtn.textContent = "重试检查";
+        });
+      };
     }
 
     element.insertBefore(container, element.firstChild);
@@ -606,14 +664,15 @@
     }
     question.element.classList.add("ai-processed");
 
-    showAnswer(question.element, "", true, null);
+    // 初始加载状态
+    showAnswer(question.element, "", true, null, question);
 
     var prompt = buildPrompt(question);
-    console.log("题目prompt:", prompt);
 
-    return callAI(prompt)
+    return callAI(prompt, 0)
       .then(function (result) {
-        showAnswer(question.element, result.answer, false, result.debug);
+        // 显示答案，并传入 question 对象
+        showAnswer(question.element, result.answer, false, result.debug, question);
         return autoFillTextAnswer(
           question.element,
           result.answer,
@@ -630,7 +689,7 @@
       .catch(function (result) {
         var errorMsg = result.error || result;
         var debugInfo = result.debug || null;
-        showAnswer(question.element, "错误: " + errorMsg, false, debugInfo);
+        showAnswer(question.element, "错误: " + errorMsg, false, debugInfo, question);
       });
   }
 
