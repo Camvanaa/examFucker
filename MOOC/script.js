@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         中国大学慕课AI答题助手
 // @namespace    http://tampermonkey.net/
-// @version      1.6
+// @version      1.7
 // @description  自动获取题目并使用AI回答，支持多种页面格式
-// @author       camvan, midairlogn 
+// @author       camvan, midairlogn
 // @match        *://www.icourse163.org/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
@@ -313,10 +313,10 @@
     let system_instructions = "";
     return new Promise(function (resolve, reject) {
       if(prompt_type === 0){
-        system_instructions = `你是答题助手。对于所有选择题（包括判断题）直接回答选项字母如"A"或"B"；填空题和问答题简洁作答。判断题中A代表正确/对，B代表错误/错。`;
+        system_instructions = `你是答题助手。对于所有选择题直接回答选项字母如"A"或"B"；判断题回复字母"T"或"F"（其中"T"表示正确/对，"F"表示错误/错）；填空题和问答题简洁作答。`;
       }
       else{
-        system_instructions = `你是答题助手，你现在需要检查题目答案是否正确并给出简短的解释或解题思路。请注意你需要先给出检查后的最新的正确答案（这里，对于所有选择题（包括判断题）直接回答选项字母如"A"或"B"；填空题和问答题简洁作答。判断题中A代表正确/对，B代表错误/错。），之后再给出简短的解释或解题思路。`
+        system_instructions = `你是答题助手，你现在需要检查题目答案是否正确并给出简短的解释或解题思路。请注意你需要先给出检查后的最新的正确答案（这里，对于所有选择题直接回答选项字母如"A"或"B"；判断题回复字母"T"或"F"（其中"T"表示正确/对，"F"表示错误/错）；填空题和问答题简洁作答。），之后再给出简短的解释或解题思路。`
       }
 
       console.log("发送API请求...");
@@ -569,8 +569,62 @@
   function autoClickOption(element, answer, questionType, format) {
     if (!CONFIG.autoClick) return Promise.resolve();
 
-    var answerText = answer.trim().toUpperCase();
-    var optionLetters = answerText.match(/[A-D]/g);
+    var answerText = (answer || "").trim().toUpperCase();
+    var optionLetters = null;
+
+    var typeText = (questionType || "").trim();
+    if (typeText.indexOf("判断") !== -1) {
+      var tfMatch = answerText.match(/[TF]/);
+      // 格式2判断题点击
+      if (tfMatch && format === 2) {
+        var desired = tfMatch[0];
+        var mapped = [];
+        var optionItems = element.querySelectorAll("ul.choices li");
+        optionItems.forEach(function (li) {
+          var posEl = li.querySelector(".optionPos");
+          if (!posEl) return;
+          var letterText = (posEl.innerText || "").trim().toUpperCase();
+          var letter = letterText.replace(".", "");
+          var hasCorrect = !!li.querySelector(".u-icon-correct");
+          var hasWrong = !!li.querySelector(".u-icon-wrong");
+          if (desired === "T" && hasCorrect) mapped.push(letter);
+          if (desired === "F" && hasWrong) mapped.push(letter);
+        });
+
+        if (mapped.length > 0) {
+          optionLetters = mapped;
+        }
+      }
+      
+      // 格式1判断题点击
+      if (tfMatch && format !== 2 && !optionLetters) {
+        var desired1 = tfMatch[0];
+        var mapped1 = [];
+        var optionIndexSpans = element.querySelectorAll('span[class*="optionIndex"]');
+        optionIndexSpans.forEach(function (span) {
+          var text = (span.innerText || "").trim().toUpperCase();
+          var letter = text.replace(".", "");
+          var container = span.closest('div[class*="option"]');
+          if (!container) return;
+          var hasCorrect = !!container.querySelector(".u-icon-correct");
+          var hasWrong = !!container.querySelector(".u-icon-wrong");
+          if (desired1 === "T" && hasCorrect) mapped1.push(letter);
+          if (desired1 === "F" && hasWrong) mapped1.push(letter);
+        });
+
+        if (mapped1.length > 0) {
+          optionLetters = mapped1;
+        }
+      }
+
+      if (tfMatch && !optionLetters) {
+        console.log("判断题未找到对错图标映射，回退到默认字母解析");
+      }
+    }
+
+    if (!optionLetters) {
+      optionLetters = answerText.match(/[A-D]/g);
+    }
 
     if (!optionLetters || optionLetters.length === 0) {
       console.log("未能从答案中提取选项字母:", answer);
