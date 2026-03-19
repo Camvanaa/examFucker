@@ -455,10 +455,12 @@
       // 规范化判断题显示: A -> T, B -> F
       if (question && (question.questionType || "").indexOf("判断") !== -1) {
         var trimmed = (answer || "").trim().toUpperCase();
-        if (trimmed === "A") displayAnswer = "T";
-        else if (trimmed === "B") displayAnswer = "F";
+        if (trimmed.startsWith("A")) displayAnswer = "T";
+        else if (trimmed.startsWith("B")) displayAnswer = "F";
+        else if (trimmed.startsWith("T")) displayAnswer = "T";
+        else if (trimmed.startsWith("F")) displayAnswer = "F";
       }
-      
+
       var debugHtml = "";
       if (CONFIG.showDebug && debugInfo) {
         debugHtml =
@@ -582,8 +584,12 @@
 
     var typeText = (questionType || "").trim();
     if (typeText.indexOf("判断") !== -1) {
-      var tfMatch = answerText.match(/[TF]/);
-      // 格式2判断题点击
+      // 标准化 AI 响应：A->T, B->F，确保后续图标/文字识别逻辑统一
+      if (answerText.startsWith("A")) answerText = "T";
+      else if (answerText.startsWith("B")) answerText = "F";
+
+      var tfMatch = answerText.match(/^[TF]/);
+      // 格式2判断题点击 (图标识别)
       if (tfMatch && format === 2) {
         var desired = tfMatch[0];
         var mapped = [];
@@ -626,7 +632,36 @@
       }
 
       if (tfMatch && !optionLetters) {
-        console.log("判断题未找到对错图标映射，回退到默认映射 T->A, F->B");
+        // 尝试通过选项内容判断（正确/错误）
+        var desiredVal = tfMatch[0];
+        var mappedText = [];
+        var labels = element.querySelectorAll('span[class*="optionContent"], .optionCnt');
+        labels.forEach(function (span) {
+          var content = (span.innerText || "").trim();
+          var container = span.closest('div[class*="option"], li');
+          if (!container) return;
+
+          var letter = "";
+          var indexEl = container.querySelector('span[class*="optionIndex"], .optionPos');
+          if (indexEl) {
+            letter = indexEl.innerText.trim().replace(".", "");
+          }
+
+          if (desiredVal === "T" && (content.indexOf("正确") !== -1 || content.indexOf("对") !== -1)) {
+            if (letter) mappedText.push(letter);
+          }
+          if (desiredVal === "F" && (content.indexOf("错误") !== -1 || content.indexOf("错") !== -1)) {
+            if (letter) mappedText.push(letter);
+          }
+        });
+
+        if (mappedText.length > 0) {
+          optionLetters = mappedText;
+        }
+      }
+
+      if (tfMatch && !optionLetters) {
+        console.log("判断题未找到对错图标或文字映射，回退到默认映射 T->A, F->B");
         var desiredVal = tfMatch[0];
         if (desiredVal === "T") optionLetters = ["A"];
         else if (desiredVal === "F") optionLetters = ["B"];
