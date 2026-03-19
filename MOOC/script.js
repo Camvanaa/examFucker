@@ -451,6 +451,14 @@
         '<div class="ai-answer-title">AI答题助手</div>' +
         '<div class="ai-answer-content ai-answer-loading">正在思考中</div>';
     } else {
+      var displayAnswer = answer;
+      // 规范化判断题显示: A -> T, B -> F
+      if (question && (question.questionType || "").indexOf("判断") !== -1) {
+        var trimmed = (answer || "").trim().toUpperCase();
+        if (trimmed === "A") displayAnswer = "T";
+        else if (trimmed === "B") displayAnswer = "F";
+      }
+      
       var debugHtml = "";
       if (CONFIG.showDebug && debugInfo) {
         debugHtml =
@@ -475,7 +483,7 @@
             '<button class="ai-check-btn" style="padding: 4px 10px; border-radius: 4px; border: none; cursor: pointer; background: #fff; color: #764ba2; font-size: 12px; font-weight: bold; margin-left: 10px;">检查并解释</button>' +
         '</div>' +
         '<div class="ai-answer-content">' +
-            escapeHtml(answer) +
+            escapeHtml(displayAnswer) +
         '</div>' +
         '<div class="ai-explanation" style="margin-top: 8px; display: none; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 13px;"></div>' +
         debugHtml;
