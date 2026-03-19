@@ -618,7 +618,10 @@
       }
 
       if (tfMatch && !optionLetters) {
-        console.log("判断题未找到对错图标映射，回退到默认字母解析");
+        console.log("判断题未找到对错图标映射，回退到默认映射 T->A, F->B");
+        var desiredVal = tfMatch[0];
+        if (desiredVal === "T") optionLetters = ["A"];
+        else if (desiredVal === "F") optionLetters = ["B"];
       }
     }
 
