@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         中国大学慕课AI答题助手
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  自动获取题目并使用AI回答，支持多种页面格式
 // @author       camvan, midairlogn
 // @match        *://www.icourse163.org/*
