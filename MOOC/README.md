@@ -25,7 +25,7 @@
 ```javascript
 // ========== 配置项 ==========
 const CONFIG = {
-  showDebug: true, // 是否显示调试信息（请求/响应内容）
+  showDebug: false, // 是否显示调试信息（请求/响应内容）
   autoClick: true, // 是否自动点击选项
   autoFillText: true, // 是否自动填入填空/问答题答案
   delay: 1200, // 每题之间的延迟(ms)，用于降低并发限流概率
@@ -37,7 +37,8 @@ const CONFIG = {
 const API_CONFIG = {
   baseUrl: "https://api.example.com/v1/chat/completions", // API地址
   apiKey: "sk-your-api-key", // API密钥
-  model: "gpt-3.5-turbo", // 模型名称
+  models: ["gemini-3-flash", "gemini-2.5-flash", "claude-opus-4-6", "deepseek-v3.2"], // 模型列表
+  selectedModel: "gemini-3-flash", // 当前选择的模型
 };
 ```
 
